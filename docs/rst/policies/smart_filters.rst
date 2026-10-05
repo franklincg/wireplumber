@@ -123,6 +123,24 @@ following optional node properties on the **main** node:
   filter will never be used under any circumstances. If the property is not set,
   WirePlumber will consider the filter as enabled (i.e. disabled = false).
 
+- **filter.smart.on-request**
+
+  When true, only streams requesting this filter by ``filter.apply`` or
+  ``filter.want`` are automatically connected to it. The value must match the
+  filter's ``filter.smart.name``. The default is false; existing smart filters
+  continue to apply to all streams targeting their device.
+
+  ``filter.apply`` takes precedence, including an empty value. A matching
+  ``filter.suppress`` disables either kind of request. An ``echo-cancel``
+  preference in ``filter.want`` is ignored for targets with ``phone`` in
+  ``device.intended-roles``; an explicit ``filter.apply`` is not.
+
+  Request-only filters are separate entry points, placed before the permanent
+  chain irrespective of their ``before``/``after`` position. A permanent filter
+  must never feed into a request-only filter, because its audio is already
+  shared with streams that did not request processing. Request-only filters
+  do not chain into each other. Permanent filters retain their relative order.
+
 - **filter.smart.targetable**
 
   Boolean indicating whether the filter can be directly linked with clients that

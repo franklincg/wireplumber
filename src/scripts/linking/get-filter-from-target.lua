@@ -9,6 +9,7 @@
 lutils = require ("linking-utils")
 cutils = require ("common-utils")
 futils = require ("filter-utils")
+rutils = require ("filter-request-utils")
 log = Log.open_topic ("s-linking")
 
 SimpleEventHook {
@@ -64,18 +65,21 @@ SimpleEventHook {
     -- Get the filter from the given target if it exists, otherwise get the
     -- default filter, but only if target was not defined
     local media_type = si_props["media.type"]
-    local filter_target = futils.get_filter_from_target (target_direction, media_type, target)
+    local request = rutils.get_request (node_props, target_node_props)
+    local filter_target = futils.get_filter_from_target (
+        target_direction, media_type, target, request)
     if filter_target ~= nil then
       target = filter_target
       log:info (si, "... got filter for given target")
     elseif filter_target == nil and not si_flags.has_defined_target then
-      filter_target = futils.get_filter_from_target (target_direction, media_type, nil)
+      filter_target = futils.get_filter_from_target (target_direction, media_type, nil, request)
       if filter_target ~= nil then
         target = filter_target
         log:info (si, "... got default filter for given target")
       end
     end
 
+    local target_picked = false
     local can_passthrough, passthrough_compatible
     if target ~= nil then
       passthrough_compatible, can_passthrough =

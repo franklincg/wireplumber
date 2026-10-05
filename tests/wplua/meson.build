@@ -82,3 +82,17 @@ test(
   args: ['lua-api-tests', 'profile-utils.lua'],
   env: common_env,
 )
+
+test(
+  'test-lua-filter-request-utils',
+  script_tester,
+  args: ['lua-api-tests', 'filter-request-utils.lua'],
+  env: common_env,
+)
+
+test(
+  'test-lua-filter-utils',
+  script_tester,
+  args: ['lua-api-tests', 'filter-utils.lua'],
+  env: common_env,
+)

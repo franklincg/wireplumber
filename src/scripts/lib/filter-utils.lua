@@ -106,6 +106,25 @@ local function getFilterSmartTargetable (metadata, node)
   return false
 end
 
+local function getFilterSmartOnRequest (metadata, node)
+  if metadata ~= nil then
+    local value_str = metadata:find (node["bound-id"], "filter.smart.on-request")
+    if value_str ~= nil then
+      local json = Json.Raw (value_str)
+      if json:is_boolean () then
+        return json:parse ()
+      end
+    end
+  end
+
+  local prop_str = node.properties ["filter.smart.on-request"]
+  if prop_str ~= nil then
+    return cutils.parseBool (prop_str)
+  end
+
+  return false
+end
+
 local function getFilterSmartTarget (metadata, node, om)
   -- Check metadata and fallback to properties
   local id = node["bound-id"]
@@ -327,6 +346,7 @@ local function rescanFilters (om, metadata_om)
     filter.name = getFilterSmartName (metadata, n)
     filter.disabled = getFilterSmartDisabled (metadata, n)
     filter.targetable = getFilterSmartTargetable (metadata, n)
+    filter.on_request = getFilterSmartOnRequest (metadata, n)
     filter.target = getFilterSmartTarget (metadata, n, om)
     filter.targetless = getFilterSmartTargetless (metadata, n)
     filter.before = getFilterSmartBefore (metadata, n)
@@ -433,17 +453,25 @@ function module.get_filter_target (direction, link_group)
     return nil
   end
 
-  -- Return the next filter with matching target
+  -- A missing explicit target is not the default target.
+  if filter.on_request and filter.target == nil and not filter.targetless then
+    return nil
+  end
+
+  -- On-request filters are separate entry points into the permanent chain.
+  -- Putting one after a shared filter would also process unrequesting streams.
+  -- Return the next permanent filter with matching target
   for i, v in ipairs(module.filters) do
     if v.direction == direction and
         v.media_type == filter.media_type and
         v.name ~= filter.name and
         v.link_group ~= link_group and
+        not v.on_request and
         not v.disabled and
         v.smart and
         ((v.target == nil and filter.target == nil) or
             (v.target ~= nil and filter.target ~= nil and v.target.id == filter.target.id)) and
-        i > index then
+        (filter.on_request or i > index) then
       return v.main_si
     end
   end
@@ -452,7 +480,7 @@ function module.get_filter_target (direction, link_group)
   return filter.target
 end
 
-function module.get_filter_from_target (direction, media_type, si_target)
+function module.get_filter_from_target (direction, media_type, si_target, request)
   local target = si_target
 
   -- Make sure direction and media_type are valid
@@ -483,7 +511,8 @@ function module.get_filter_from_target (direction, media_type, si_target)
     end
   end
 
-  -- Find the first filter matching target
+  -- Prefer the requested entry point over the shared permanent chain.
+  local first_permanent = nil
   for i, v in ipairs(module.filters) do
     if v.direction == direction and
         v.media_type == media_type and
@@ -491,11 +520,17 @@ function module.get_filter_from_target (direction, media_type, si_target)
         v.smart and
         ((v.target ~= nil and target ~= nil and v.target.id == target.id) or
             (target == nil and v.targetless)) then
-      return v.main_si
+      if v.on_request then
+        if v.name == request then
+          return v.main_si
+        end
+      elseif first_permanent == nil then
+        first_permanent = v.main_si
+      end
     end
   end
 
-  return nil
+  return first_permanent
 end
 
 return module
