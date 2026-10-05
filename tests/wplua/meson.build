@@ -96,3 +96,10 @@ test(
   args: ['lua-api-tests', 'filter-utils.lua'],
   env: common_env,
 )
+
+test(
+  'test-lua-filter-lifetime-utils',
+  script_tester,
+  args: ['lua-api-tests', 'filter-lifetime-utils.lua'],
+  env: common_env,
+)
