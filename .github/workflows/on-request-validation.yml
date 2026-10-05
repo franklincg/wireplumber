@@ -1,0 +1,47 @@
+name: WirePlumber on-request validation
+on:
+  push:
+    branches: [fix/on-request-echo-cancel-1031]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  linux:
+    if: github.repository == 'franklincg/wireplumber'
+    runs-on: ubuntu-24.04
+    container: ubuntu:24.04
+    timeout-minutes: 25
+    steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates git build-essential meson ninja-build pkg-config libglib2.0-dev libdbus-1-dev dbus liblua5.4-dev gettext
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build pinned PipeWire with test plugins
+        shell: bash
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          git init pipewire
+          git -C pipewire remote add origin https://github.com/PipeWire/pipewire.git
+          git -C pipewire fetch --depth 1 origin 702a11de5b6bd48dcd358d000588dfa1618174c9
+          git -C pipewire checkout --detach FETCH_HEAD
+          meson setup build-pipewire pipewire --prefix="$GITHUB_WORKSPACE/prefix"             -Dlibsystemd=disabled -Dpipewire-alsa=disabled -Dpipewire-jack=disabled             -Dalsa=disabled -Dv4l2=disabled -Djack=disabled -Dbluez5=disabled             -Dvulkan=disabled -Dgstreamer=disabled -Ddocs=disabled -Dman=disabled             -Dexamples=disabled -Dpw-cat=disabled -Dsdl2=disabled -Dsndfile=disabled             -Dlibpulse=disabled -Davahi=disabled -Decho-cancel-webrtc=disabled             -Dsession-managers=[] -Dvideotestsrc=enabled -Daudiotestsrc=enabled -Dtest=enabled
+          meson compile -C build-pipewire -j 2
+          meson install -C build-pipewire
+      - name: Build WirePlumber and run the real test suite
+        shell: bash
+        run: |
+          export PKG_CONFIG_PATH="$(dirname "$(find "$GITHUB_WORKSPACE/prefix" -name libpipewire-0.3.pc)")"
+          export LD_LIBRARY_PATH="$(dirname "$(find "$GITHUB_WORKSPACE/prefix" -name libpipewire-0.3.so -print -quit)")"
+          meson setup build -Dsystem-lua=true -Ddoc=disabled -Dintrospection=disabled -Dsystemd=disabled -Delogind=disabled
+          meson compile -C build -j 2
+          dbus-run-session -- meson test -C build --print-errorlogs --timeout-multiplier 3
+      - name: Print test summary without storing billed artifacts
+        if: always()
+        shell: bash
+        run: |
+          if test -f build/meson-logs/testlog.txt; then
+            tail -n 80 build/meson-logs/testlog.txt
+          fi
