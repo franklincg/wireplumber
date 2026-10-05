@@ -27,11 +27,11 @@ local function filter_properties (name, target)
   return Json.Object (properties)
 end
 
-local function stream_properties (name)
+local function stream_properties (name, target)
   return Json.Object {
     ["node.name"] = name,
     ["node.passive"] = true,
-    ["node.dont-fallback"] = true,
+    ["node.dont-fallback"] = target ~= nil,
     ["node.linger"] = true,
     ["state.restore-props"] = false,
     ["state.restore-target"] = false,
@@ -41,8 +41,8 @@ end
 local args = Json.Object {
   ["source.props"] = filter_properties ("wp.echo-cancel.source", config.source),
   ["sink.props"] = filter_properties ("wp.echo-cancel.sink", config.sink),
-  ["capture.props"] = stream_properties ("wp.echo-cancel.capture"),
-  ["playback.props"] = stream_properties ("wp.echo-cancel.playback"),
+  ["capture.props"] = stream_properties ("wp.echo-cancel.capture", config.source),
+  ["playback.props"] = stream_properties ("wp.echo-cancel.playback", config.sink),
 }
 local manager = lifetime.new (function ()
   return LocalModule ("libpipewire-module-echo-cancel", args:to_string (), {})
@@ -102,8 +102,10 @@ SimpleEventHook {
       if cutils.getTargetDirection (props) == "input" then
         configured_target = config.sink
       end
+      local default_id = cutils.getDefaultNode (props, cutils.getTargetDirection (props))
+      local matches_default = target:get_associated_proxy ("node")["bound-id"] == default_id
       local eligible = configured_target and target_props["node.name"] == configured_target or
-          not configured_target and not flags.has_defined_target
+          not configured_target and (not flags.has_defined_target or matches_default)
       requested = eligible and not target_props["session.audio-group"] and
           rutils.get_request (node.properties, target_props) == "echo-cancel"
     end

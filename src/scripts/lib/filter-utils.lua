@@ -480,7 +480,7 @@ function module.get_filter_target (direction, link_group)
   return filter.target
 end
 
-function module.get_filter_from_target (direction, media_type, si_target, request)
+function module.get_filter_from_target (direction, media_type, si_target, request, request_only)
   local target = si_target
 
   -- Make sure direction and media_type are valid
@@ -530,7 +530,10 @@ function module.get_filter_from_target (direction, media_type, si_target, reques
     end
   end
 
-  return first_permanent
+  if not request_only then
+    return first_permanent
+  end
+  return nil
 end
 
 return module

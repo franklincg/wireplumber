@@ -40,6 +40,7 @@ jobs:
           dbus-run-session -- meson test -C build --print-errorlogs --timeout-multiplier 3
           meson install -C build
           WP_TEST_PREFIX="$GITHUB_WORKSPACE/prefix" dbus-run-session -- python3 tests/integration/echo-cancel-on-request.py
+          WP_TEST_PREFIX="$GITHUB_WORKSPACE/prefix" WP_ECHO_TEST_MODE=default dbus-run-session -- python3 tests/integration/echo-cancel-on-request.py
       - name: Print test summary without storing billed artifacts
         if: always()
         shell: bash

@@ -35,6 +35,8 @@ for _, direction in ipairs ({ "input", "output" }) do
           "ordinary stream must bypass the request-only entry")
       assert (filters.get_filter_from_target (direction, "Audio", device, "other") == first.main_si)
       assert (filters.get_filter_from_target (direction, "Audio", device, "echo-cancel") == echo.main_si)
+      assert (filters.get_filter_from_target (direction, "Audio", device, "other", true) == nil)
+      assert (filters.get_filter_from_target (direction, "Audio", device, "echo-cancel", true) == echo.main_si)
       assert (filters.get_filter_target (direction, echo.link_group) == first.main_si)
       assert (filters.get_filter_target (direction, first.link_group) == last.main_si)
       assert (filters.get_filter_target (direction, last.link_group) == device)

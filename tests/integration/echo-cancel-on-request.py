@@ -14,6 +14,7 @@ import tempfile
 import time
 
 PREFIX = Path(os.environ["WP_TEST_PREFIX"])
+MODE = os.environ.get("WP_ECHO_TEST_MODE", "configured")
 processes = []
 logs = []
 checks = 0
@@ -97,10 +98,12 @@ def stop(p):
             p.wait(timeout=3)
 
 
-def stream(name, capture=False, properties=None):
+def stream(name, capture=False, properties=None, device=None):
     argv = ["parec" if capture else "pacat", "--raw", "--rate=48000",
             "--channels=1", "--format=s16le", "--client-name=" + name,
             "--property=application.name=" + name]
+    if device:
+        argv.append("--device=" + device)
     for key, value in (properties or {}).items():
         argv.append("--property=" + key + "=" + value)
     if capture:
@@ -124,7 +127,10 @@ context.spa-libs = { audiotestsrc = audiotestsrc/libspa-audiotestsrc }
 context.objects = [
   { factory = adapter
     args = { factory.name = support.null-audio-sink node.name = ci.speaker
-             media.class = Audio/Sink audio.position = [ MONO ] } }
+             media.class = Audio/Sink priority.session = 1000 audio.position = [ MONO ] } }
+  { factory = adapter
+    args = { factory.name = support.null-audio-sink node.name = ci.other
+             media.class = Audio/Sink priority.session = 100 audio.position = [ MONO ] } }
   { factory = adapter
     args = { factory.name = audiotestsrc node.name = ci.mic
              media.class = Audio/Source audio.position = [ MONO ] } }
@@ -141,8 +147,7 @@ wireplumber.profiles = {
     hooks.node.echo-cancel = required
   }
 }
-node.echo-cancel = { source = ci.mic sink = ci.speaker }
-""")
+""" + ("node.echo-cancel = { source = ci.mic sink = ci.speaker }" if MODE == "configured" else ""))
     env = dict(os.environ, HOME=str(home), XDG_RUNTIME_DIR=str(runtime),
                XDG_CONFIG_HOME=str(config), XDG_STATE_HOME=str(home / ".state"),
                WIREPLUMBER_DEBUG="3", PIPEWIRE_DEBUG="2")
@@ -162,8 +167,8 @@ node.echo-cancel = { source = ci.mic sink = ci.speaker }
         data = wait_for(lambda d: linked(d, "ci.ordinary", "ci.speaker"),
                         "ordinary PulseAudio playback uses the physical sink")
         check(not aec_nodes(data), "no AEC module loaded without a request")
-        playback = stream("ci.want", properties={"filter.want": "echo-cancel"})
-        capture = stream("ci.capture", capture=True,
+        playback = stream("ci.want", properties={"filter.want": "echo-cancel"}, device="ci.speaker")
+        capture = stream("ci.capture", capture=True, device="ci.mic",
                          properties={"filter.want": "echo-cancel"})
         data = wait_for(lambda d: linked(d, "ci.want", "wp.echo-cancel.sink") and
                         linked(d, "wp.echo-cancel.source", "ci.capture"),
@@ -182,6 +187,9 @@ node.echo-cancel = { source = ci.mic sink = ci.speaker }
                                                        "filter.suppress": "echo-cancel"})
         wait_for(lambda d: linked(d, "ci.suppressed", "ci.speaker"),
                  "suppressed stream stays outside the AEC filter")
+        unrelated = stream("ci.explicit-other", properties={"filter.want": "echo-cancel"}, device="ci.other")
+        wait_for(lambda d: linked(d, "ci.explicit-other", "ci.other"),
+                 "explicit unrelated device remains selected despite filter.want")
         stop(playback)
         data = wait_for(lambda d: node_id(d, "ci.want") is None,
                         "first requester removed")
@@ -199,7 +207,7 @@ node.echo-cancel = { source = ci.mic sink = ci.speaker }
             stop(p)
             wait_for(lambda d: not aec_nodes(d),
                      "repeated call %d unloads cleanly" % (i + 1))
-        print("INTEGRATION PASSED:", checks, "checks; synthetic devices only", flush=True)
+        print("INTEGRATION PASSED:", checks, "checks;", MODE, "pair; synthetic devices only", flush=True)
     except Exception:
         for p in processes:
             if p.poll() is not None:

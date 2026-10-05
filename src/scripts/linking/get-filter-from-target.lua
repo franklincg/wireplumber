@@ -68,15 +68,19 @@ SimpleEventHook {
     local request = rutils.get_request (node_props, target_node_props)
     local filter_target = futils.get_filter_from_target (
         target_direction, media_type, target, request)
+    if filter_target == nil then
+      -- An application may explicitly name the current default device. Honor
+      -- its request without applying unrelated targetless permanent filters.
+      local requested_default = request ~= nil and
+          target_node["bound-id"] == cutils.getDefaultNode (si_props, target_direction)
+      if not si_flags.has_defined_target or requested_default then
+        filter_target = futils.get_filter_from_target (target_direction,
+            media_type, nil, request, si_flags.has_defined_target)
+      end
+    end
     if filter_target ~= nil then
       target = filter_target
-      log:info (si, "... got filter for given target")
-    elseif filter_target == nil and not si_flags.has_defined_target then
-      filter_target = futils.get_filter_from_target (target_direction, media_type, nil, request)
-      if filter_target ~= nil then
-        target = filter_target
-        log:info (si, "... got default filter for given target")
-      end
+      log:info (si, "... got matching filter for target")
     end
 
     local target_picked = false

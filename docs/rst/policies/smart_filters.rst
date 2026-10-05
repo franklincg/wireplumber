@@ -420,7 +420,7 @@ actual ``node.name`` values from ``wpctl status -n``::
 
 Only streams whose selected target matches the configured device on their side
 request that module. Without explicit devices, the filter follows default-device
-selection and is not inserted for streams with an explicit target. Explicit
+selection, including streams explicitly naming the current default. Explicit
 unrelated targets, audio groups and role-policy targets are left to their existing
 policies. This component manages one pair, not a separate AEC instance for every
 application or arbitrary target pair.
