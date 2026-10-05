@@ -8,6 +8,11 @@ local lifetime = require ("filter-lifetime-utils")
 local log = Log.open_topic ("s-echo-cancel")
 local config = Conf.get_section_as_json ("node.echo-cancel", Json.Object {}):parse ()
 local observed = {}
+for _, key in ipairs ({ "source", "sink" }) do
+  if config[key] ~= nil and type (config[key]) ~= "string" then
+    error ("node.echo-cancel." .. key .. " must be a node.name string")
+  end
+end
 
 local function filter_properties (name, target)
   local properties = {
@@ -87,7 +92,7 @@ SimpleEventHook {
     EventInterest { Constraint { "event.type", "=", "select-target" } },
   },
   execute = function (event)
-    local source, om, si, props, flags, target = lutils.unwrap_select_target_event (event)
+    local source, om, si, props, flags, target = lutils:unwrap_select_target_event (event)
     local node = si:get_associated_proxy ("node")
     if not node or not observed[node.id] then return end
     local requested = false

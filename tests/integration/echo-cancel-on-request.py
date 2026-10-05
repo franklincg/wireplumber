@@ -39,7 +39,9 @@ def spawn(argv, name, **kwargs):
 def snapshot():
     result = subprocess.run([str(PREFIX / "bin/pw-dump")], env=env,
                             capture_output=True, text=True, timeout=5)
-    return json.loads(result.stdout) if result.returncode == 0 else []
+    if result.returncode != 0 or not result.stdout.strip():
+        return []
+    return json.loads(result.stdout)
 
 
 def nodes(data):
@@ -118,6 +120,7 @@ with tempfile.TemporaryDirectory(prefix="wp-echo-test-") as temporary:
     pwconf.mkdir(parents=True)
     wpconf.mkdir(parents=True)
     (pwconf / "test-devices.conf").write_text("""
+context.spa-libs = { audiotestsrc = audiotestsrc/libspa-audiotestsrc }
 context.objects = [
   { factory = adapter
     args = { factory.name = support.null-audio-sink node.name = ci.speaker

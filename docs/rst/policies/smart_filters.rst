@@ -396,3 +396,60 @@ We can also change the target of a filter at runtime:
 
 Every time a key in the filters metadata changes, all filters are unlinked and
 re-linked properly, following the new policy.
+
+On-demand echo cancellation
+---------------------------
+
+The optional ``hooks.node.echo-cancel`` component creates an echo-cancel module
+when a matching audio stream is being linked, and unloads it after the last
+requester disappears or stops requesting the filter. It is not enabled in the
+default profile. To try it with the standard linking policy, add a configuration
+fragment in ``wireplumber.conf.d``::
+
+  wireplumber.profiles = {
+    main = { hooks.node.echo-cancel = required }
+  }
+
+For a fixed microphone/speaker pair, as on an embedded phone, configure the
+actual ``node.name`` values from ``wpctl status -n``::
+
+  node.echo-cancel = {
+    source = "my_alsa_input"
+    sink = "my_alsa_output"
+  }
+
+Only streams whose selected target matches the configured device on their side
+request that module. Without explicit devices, the filter follows default-device
+selection and is not inserted for streams with an explicit target. Explicit
+unrelated targets, audio groups and role-policy targets are left to their existing
+policies. This component manages one pair, not a separate AEC instance for every
+application or arbitrary target pair.
+
+The filter main nodes are named ``wp.echo-cancel.source`` and
+``wp.echo-cancel.sink``. Their capture/playback streams are passive, do not save
+route preferences, and do not fall back when a configured target is missing.
+Other applications keep their normal paths through permanent filters. No default
+device metadata or application properties are rewritten.
+
+The existing PipeWire WebRTC AEC SPA plugin must be installed. If loading fails,
+a warning is logged once per nonempty group of requests instead of retrying on
+every graph rescan. After all requesters have gone, a new request may try again.
+No PulseAudio module parameters are interpolated into module configuration.
+
+Testing
+~~~~~~~
+
+The request, chain-isolation and lifecycle regression tests run with the normal
+``meson test -C build`` suite. The integration exercise at
+``tests/integration/echo-cancel-on-request.py`` starts private PipeWire,
+pipewire-pulse and WirePlumber processes with synthetic source/sink nodes. It
+requires a common installation prefix with the WebRTC plugin and PulseAudio
+``pacat``/``parec`` tools::
+
+  WP_TEST_PREFIX=/path/to/prefix dbus-run-session -- \
+    python3 tests/integration/echo-cancel-on-request.py
+
+It checks real PulseAudio requests, graph links, sharing, suppression and module
+teardown. Synthetic routing success does **not** demonstrate acoustic echo
+reduction on a Librem 5. Device-specific audio quality and interaction with the
+phone's existing policy must be validated separately before deployment.
